@@ -21,7 +21,7 @@ Model Context Protocol (MCP) server for integrating Redash with AI assistants li
 
 ## Prerequisites
 
-- Node.js (v18 or later)
+- Node.js (v22.13 or later for local development with pnpm)
 - pnpm
 - Access to a Redash instance
 - Redash API key
@@ -141,6 +141,20 @@ pnpm start -- --transport http --host 127.0.0.1 --port 3333 --path /mcp
 HTTP mode is stateless: the server does not issue `Mcp-Session-Id`, does not provide a standalone GET SSE stream, and handles each `POST` with a fresh MCP server instance. `GET /mcp` and `DELETE /mcp` return `405 Method Not Allowed`.
 
 The default bind is localhost-only (`127.0.0.1`) with Host header protection. Browser requests with a non-local `Origin` header are rejected.
+
+## Docker
+
+Container images are published to GitHub Container Registry for both `linux/amd64` and `linux/arm64`.
+
+```bash
+docker run --rm -p 3000:3000 \
+  -e REDASH_URL=https://your-redash-instance.com \
+  -e REDASH_API_KEY=your_api_key \
+  ghcr.io/suthio/redash-mcp:latest
+```
+
+The container runs Streamable HTTP by default and listens on `0.0.0.0:3000` with the MCP endpoint at `/mcp`.
+Published images are signed with keyless cosign.
 
 ## Available Tools
 
