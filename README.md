@@ -38,6 +38,10 @@ Optional variables:
 - `REDASH_MAX_RESULTS`: Maximum number of results to return (default: 1000)
 - `REDASH_EXTRA_HEADERS`: Extra HTTP headers to include with every Redash request. Accepts either a JSON object string or a semicolon/comma-separated list of `key=value` pairs.
 - `REDASH_SOCKS_PROXY`: SOCKS proxy URL for routing requests through a proxy (e.g., `socks5h://localhost:1080`). Use `socks5h://` (with `h`) to delegate DNS resolution to the proxy, which is required for internal hostnames that don't resolve on the local machine.
+- `MCP_TRANSPORT`: MCP transport to use. Supported values are `stdio`, `http`, and `streamable-http` (default: `stdio`).
+- `MCP_HTTP_HOST`: Host for Streamable HTTP mode (default: `127.0.0.1`).
+- `MCP_HTTP_PORT`: Port for Streamable HTTP mode (default: `3000`).
+- `MCP_HTTP_PATH`: Streamable HTTP endpoint path (default: `/mcp`).
 
 Examples:
 
@@ -86,6 +90,8 @@ Notes:
    pnpm start
    ```
 
+   The default transport is stdio, which is the mode expected by most desktop MCP clients.
+
 ## Usage with Claude for Desktop
 
 To use this MCP server with Claude for Desktop, configure it in your Claude for Desktop configuration file:
@@ -112,6 +118,29 @@ Add the following configuration (edit paths as needed):
   }
 }
 ```
+
+## Streamable HTTP Transport
+
+The server can also run as a stateless Streamable HTTP MCP server. Environment variables configure the HTTP listener:
+
+```bash
+REDASH_URL=https://your-redash-instance.com \
+REDASH_API_KEY=your_api_key \
+MCP_TRANSPORT=http \
+pnpm start
+```
+
+This starts `POST http://127.0.0.1:3000/mcp` by default. CLI flags override environment variables:
+
+```bash
+REDASH_URL=https://your-redash-instance.com \
+REDASH_API_KEY=your_api_key \
+pnpm start -- --transport http --host 127.0.0.1 --port 3333 --path /mcp
+```
+
+HTTP mode is stateless: the server does not issue `Mcp-Session-Id`, does not provide a standalone GET SSE stream, and handles each `POST` with a fresh MCP server instance. `GET /mcp` and `DELETE /mcp` return `405 Method Not Allowed`.
+
+The default bind is localhost-only (`127.0.0.1`) with Host header protection. Browser requests with a non-local `Origin` header are rejected.
 
 ## Available Tools
 

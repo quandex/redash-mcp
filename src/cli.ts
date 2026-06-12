@@ -1,14 +1,27 @@
 #!/usr/bin/env node
 
 import * as dotenv from 'dotenv';
-import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import * as path from 'path';
+import { ConfigError, parseServerConfig, type ServerConfig } from './config.js';
 
 // Check if .env file exists in current directory and load it
 const envPath = path.join(process.cwd(), '.env');
 if (existsSync(envPath)) {
   dotenv.config({ path: envPath });
+}
+
+let serverConfig: ServerConfig;
+try {
+  serverConfig = parseServerConfig();
+} catch (error) {
+  if (error instanceof ConfigError) {
+    console.error(`Error: ${error.message}`);
+  } else {
+    console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  process.exit(1);
 }
 
 // Check required environment variables
@@ -29,5 +42,6 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
-// Run the MCP server
-import './index.js';
+// Run the MCP server after environment validation, because redashClient is initialized on import.
+const { runConfiguredServer } = await import('./startup.js');
+await runConfiguredServer(serverConfig);

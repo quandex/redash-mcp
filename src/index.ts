@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import * as path from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -17,27 +18,10 @@ import { buildInputSchema, type JsonSchemaDescriptionMap } from "./jsonSchema.js
 import { buildParameterizedExecutionParameters, ParameterizedExecutionError } from "./parameterizedExecution.js";
 import { mergeDeep } from "./utils.js";
 import { buildWidgetLayoutOptions, dashboardGridDefaults, summarizeWidgetLayout, widgetLayoutEntrySchema, widgetPositionSchema } from "./widgetLayout.js";
-import { logger, LogLevel } from "./logger.js";
+import { logger } from "./logger.js";
 
 // Load environment variables
 dotenv.config();
-
-// Create MCP server instance
-const server = new Server(
-  {
-    name: "redash-mcp",
-    version: "1.1.0"
-  },
-  {
-    capabilities: {
-      tools: {},
-      resources: {}
-    }
-  }
-);
-
-// Set up server logging
-logger.info('Starting Redash MCP server...');
 
 const emptyInputSchema = z.object({});
 
@@ -2059,6 +2043,20 @@ async function listDestinations() {
 
 // ----- Resources Implementation -----
 
+export function createRedashMcpServer(): Server {
+  const server = new Server(
+    {
+      name: "redash-mcp",
+      version: "1.1.0"
+    },
+    {
+      capabilities: {
+        tools: {},
+        resources: {}
+      }
+    }
+  );
+
 // List available resources
 server.setRequestHandler(ListResourcesRequestSchema, async () => {
   try {
@@ -2812,9 +2810,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+  return server;
+}
+
 // Start the server with stdio transport
-async function main() {
+export async function startStdioServer() {
   try {
+    const server = createRedashMcpServer();
     const transport = new StdioServerTransport();
 
     logger.info("Starting Redash MCP server...");
@@ -2827,4 +2829,24 @@ async function main() {
   }
 }
 
-main();
+function isDirectlyRun(): boolean {
+  const entrypoint = process.argv[1];
+  if (!entrypoint) {
+    return false;
+  }
+
+  const normalizedEntrypoint = path.normalize(entrypoint);
+  return (
+    normalizedEntrypoint.endsWith(path.join("dist", "index.js")) ||
+    normalizedEntrypoint.endsWith(path.join("src", "index.ts"))
+  );
+}
+
+if (isDirectlyRun()) {
+  void runDirectly();
+}
+
+async function runDirectly(): Promise<void> {
+  const { runConfiguredServerCli } = await import("./startup.js");
+  await runConfiguredServerCli();
+}
