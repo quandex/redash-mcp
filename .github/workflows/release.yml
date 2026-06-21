@@ -36,11 +36,10 @@ jobs:
         
       - name: Test
         run: pnpm test
-        
-      - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Fork builds a container image only; npm publishing belongs to upstream
+      # (@suthio scope). Dropped so the GHCR build below isn't blocked by a
+      # missing NPM_TOKEN / wrong-scope publish.
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
