@@ -10,14 +10,15 @@ export interface HttpServerConfig {
   host: string;
   port: number;
   path: string;
+  allowedOrigins?: string[] | "*";
 }
 
 const LOCALHOST_ORIGIN_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
-export function createHttpApp(config: Pick<HttpServerConfig, "host" | "path">): Express {
+export function createHttpApp(config: Pick<HttpServerConfig, "host" | "path" | "allowedOrigins">): Express {
   const app = createMcpExpressApp({ host: config.host });
 
-  app.use(validateOriginHeader);
+  app.use(makeOriginValidator(config.allowedOrigins));
 
   app.post(config.path, async (req, res) => {
     const server = createRedashMcpServer();
@@ -98,33 +99,55 @@ export async function startHttpServer(config: HttpServerConfig): Promise<HttpSer
   });
 }
 
-const validateOriginHeader: RequestHandler = (req, res, next) => {
-  const originHeader = req.headers.origin;
-
-  if (!originHeader) {
-    next();
-    return;
+// Builds the Origin-header guard. Unset allowedOrigins keeps the upstream
+// localhost-only allowlist. "*" skips the check entirely (trusted-proxy
+// deployments). A list adds those origins' hostnames to the localhost set.
+function makeOriginValidator(allowedOrigins?: string[] | "*"): RequestHandler {
+  if (allowedOrigins === "*") {
+    return (_req, _res, next) => next();
   }
 
-  try {
-    const origin = new URL(originHeader);
-    if (LOCALHOST_ORIGIN_HOSTS.has(origin.hostname)) {
+  const allowedHosts = new Set(LOCALHOST_ORIGIN_HOSTS);
+  for (const entry of allowedOrigins ?? []) {
+    allowedHosts.add(extractHostname(entry));
+  }
+
+  return (req, res, next) => {
+    const originHeader = req.headers.origin;
+
+    if (!originHeader) {
       next();
       return;
     }
-  } catch {
-    // Fall through to the JSON-RPC error below.
-  }
 
-  res.status(403).json({
-    jsonrpc: "2.0",
-    error: {
-      code: -32000,
-      message: `Invalid Origin header: ${originHeader}`,
-    },
-    id: null,
-  });
-};
+    try {
+      const origin = new URL(originHeader);
+      if (allowedHosts.has(origin.hostname)) {
+        next();
+        return;
+      }
+    } catch {
+      // Fall through to the JSON-RPC error below.
+    }
+
+    res.status(403).json({
+      jsonrpc: "2.0",
+      error: {
+        code: -32000,
+        message: `Invalid Origin header: ${originHeader}`,
+      },
+      id: null,
+    });
+  };
+}
+
+function extractHostname(entry: string): string {
+  try {
+    return new URL(entry).hostname;
+  } catch {
+    return entry.trim();
+  }
+}
 
 function methodNotAllowed(_req: Request, res: Response): void {
   res.setHeader("Allow", "POST");

@@ -6,6 +6,7 @@ export interface ServerConfig {
     host: string;
     port: number;
     path: string;
+    allowedOrigins?: string[] | "*";
   };
 }
 
@@ -46,6 +47,7 @@ export function parseServerConfig(options: ParseServerConfigOptions = {}): Serve
   const host = parseHost(cli.host ?? env.MCP_HTTP_HOST ?? DEFAULT_HTTP_HOST);
   const port = parsePort(cli.port ?? env.MCP_HTTP_PORT ?? DEFAULT_HTTP_PORT);
   const httpPath = parseHttpPath(cli.path ?? env.MCP_HTTP_PATH ?? DEFAULT_HTTP_PATH);
+  const allowedOrigins = parseAllowedOrigins(env.MCP_ALLOWED_ORIGINS);
 
   return {
     transport,
@@ -53,8 +55,31 @@ export function parseServerConfig(options: ParseServerConfigOptions = {}): Serve
       host,
       port,
       path: httpPath,
+      allowedOrigins,
     },
   };
+}
+
+// Origin allowlist for the HTTP transport. Unset preserves the upstream
+// localhost-only behavior. "*" disables the check — intended only when the
+// server runs behind a trusted authenticating reverse proxy on a private
+// network (our case: ClusterIP service behind the sigbit OAuth proxy).
+function parseAllowedOrigins(value: string | undefined): string[] | "*" | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed === "*") {
+    return "*";
+  }
+
+  const origins = trimmed
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  return origins.length > 0 ? origins : undefined;
 }
 
 function parseCliArgs(argv: string[]): Partial<Record<CliOptionName, string>> {
